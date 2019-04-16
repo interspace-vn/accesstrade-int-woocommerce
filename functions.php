@@ -1,64 +1,140 @@
-<?php
+<?php 
+add_action('woocommerce_checkout_order_processed', 'enroll_student');
 
-function at_inject_scripts() {
-    $current_hour = new DateTime();
-    $current_hour->setTime($current_hour->format("H"), 0, 0);
-    ?>
-    <script src="//static.accesstrade.vn/js/trackingtag/tracking_kelly.js?v=<?=$current_hour->getTimestamp();?>"></script>
-    <script type="text/javascript">
-    AT.init({"campaign_id":"xxx", "is_reoccur": 1,"is_lastclick": 1} );
-    AT.track();
-    </script>
-    <?php
-}
-add_action('wp_head', 'at_inject_scripts');
+    function enroll_student($order_id)
+    {
+        $order = wc_get_order( $order_id );
 
-function at_place_order($order_id) {
-    $order = wc_get_order( $order_id );
-    $order->get_total();
-    $line_items = $order->get_items();
-    $items=array();
+        $line_items = $order->get_items();
 
-    foreach ( $line_items as $item ) {
-        // This will be a product
-        $product = $order->get_product_from_item( $item );
+        $items=array();
 
-        // This is the products SKU
-        $sku = $product->get_sku();
+        $date = date('Y-m-d H:i:s');
 
-        // This is the qty purchased
-        $qty = $item['qty'];
+        foreach ( $line_items as $item ) {
+            // This will be a product
+            $product = $order->get_product_from_item( $item );
 
-        // Line item total cost including taxes and rounded
-        $total = $order->get_line_total( $item, true, true );
+            // This is the products SKU
+            $sku = $product->get_sku();
 
-        // Line item subtotal (before discounts)
-        $subtotal = $order->get_line_subtotal( $item, true, true );
-        array_push($items, $item);
+            // This is the qty purchased
+            $qty = $item['qty'];
+
+            // Line item total cost including taxes and rounded
+            $total = $order->get_line_total( $item, true, true );
+
+            // Line item subtotal (before discounts)
+            $subtotal = $order->get_line_subtotal( $item, true, true );
+
+            array_push($items, $item);
+
+        }
+        $_SESSION["items"] = $items;
+        $arr = array();
+        for ($i=0; $i < sizeof($_SESSION["items"]); $i++) { 
+            array_push($arr, array(
+                        "id" => strval($items[$i]['product_id']),
+                        "sku" => " ",
+                        "name" => strval($items[$i]['name']),
+                        "price" => $items[$i]['subtotal'],
+                        "quantity" => $items[$i]['quantity'],
+                        "category" => "Category A",
+                        "category_id" => "defaul"
+                    ));     
+        }
+        $data1 = array(
+            "conversion_id" => strval($order_id),
+            "conversion_result_id" => "30",
+            "tracking_id" => "xxx",
+            "transaction_id" => strval($order_id),
+            "transaction_time" => $date,
+            "transaction_value" => 100000,
+            "transaction_discount " => strval($order->discount_total),
+            "items" => $arr
+        );
+
+        $data_string = json_encode($data1);
+
+        // echo $data_string;
+
+
+        $ch = curl_init('https://api.accesstrade.vn/v1/postbacks/conversions');
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data_string);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'Authorization: Token '.get_option( "token", $default = false)
+        ));
+
+        $result = curl_exec($ch);
+
+        echo $order_id;
     }
 
-    $total_items = count($items);
+    // function bbloomer_conversion_tracking_thank_you_page() {
+    //  // print_r($_SESSION["items"]);
+    
+    // }
 
+    function wpb_hook_javascript() {
 ?>
-    <script type="text/javascript">
-        document.body.innerHTML += '<textarea>Generate order info</textarea>';
-        accesstrade_order_info={
-            order_id: <?php echo $order->id; ?>,
-            amount: <?php echo $order->discount_total ?>,
-            discount: <?php echo $order->discount_total ?>,
-            order_items:[<?php
-                for ($i=0; $i < $total_items; $i++) {
-                    if ($i == ($total_items-1)) {
-                        echo "{itemid: ".$items[$i]['product_id'].", quantity: ".$items[$i]['quantity'].",  price: ".$items[$i]['subtotal'] / $items[$i]['quantity'].", catid: 'default'}";
-                    }else{
-                        echo "{itemid: ".$items[$i]['product_id'].", quantity: ".$items[$i]['quantity'].",  price: ".$items[$i]['subtotal'] / $items[$i]['quantity'].", catid: 'defaul'} , ";
-                    }
-                }
-                ?>
-            ]};
-        document.body.innerHTML += '<textarea>' + JSON.stringify(accesstrade_order_info) + '</textarea>';
-        AT.track_order(accesstrade_order_info);
-    </script>
+        <script src="//cdn.accesstrade.vn/js/tracking.js" ></script>
+        <script type="text/javascript">
+                AT.track();
+        </script>
 <?php
-}
-add_action( 'woocommerce_thankyou', 'at_place_order' );
+    }
+    add_action('wp_head', 'wpb_hook_javascript');
+
+    add_action('woocommerce_order_status_changed','status_changed_processsing');
+   function status_changed_processsing( $order_id, $checkout = null ) {
+       $order = wc_get_order( $order_id );
+       $line_items = $order->get_items();
+       echo $order->status;
+
+       $items=array();
+
+        foreach ( $line_items as $item ) {
+
+            array_push($items, $item);
+
+        }
+
+       if($order->status == "completed"){
+
+            $arr = array();
+            for ($i=0; $i < sizeof($items); $i++) { 
+                array_push($arr, array(
+                            "id" => strval($items[$i]['product_id']),
+                            "status" => 1
+                        ));     
+            }
+            $data1 = array(
+                "transaction_id" => strval($order_id),
+                "status" => 1,
+                "items" => $arr
+            );
+
+            $data_string = json_encode($data1);
+            echo $data_string;
+
+
+            $ch = curl_init('https://api.accesstrade.vn/v1/postbacks/conversions');
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data_string);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                'Content-Type: application/json',
+                'Authorization: Token '.get_option( "token", $default = false)
+            ));
+
+            $result = curl_exec($ch);
+
+            echo $result;
+
+           
+        }
+   }
+ ?>
