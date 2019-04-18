@@ -12,28 +12,25 @@ function request_api_accesstrade($order_id)
     $date = date('Y-m-d H:i:s');
 
     foreach ( $line_items as $item ) {
-            // This will be a product
+            
         $product = $order->get_product_from_item( $item );
 
-            // This is the products SKU
         $sku = $product->get_sku();
 
-            // This is the qty purchased
         $qty = $item['qty'];
 
-            // Line item total cost including taxes and rounded
         $total = $order->get_line_total( $item, true, true );
 
-            // Line item subtotal (before discounts)
         $subtotal = $order->get_line_subtotal( $item, true, true );
 
         array_push($items, $item);
 
     }
-    $_SESSION["items"] = $items;
+
     $arr_item = array();
-    $count = sizeof($_SESSION["items"]);
-    echo $count;
+
+    $count = sizeof($items);
+
     for ($i=0; $i < $count; $i++) { 
         array_push($arr_item, array(
             "id" => strval($items[$i]['product_id']),
@@ -43,9 +40,10 @@ function request_api_accesstrade($order_id)
             "quantity" => $items[$i]['quantity'],
             "category" => "Category A",
             "category_id" => "defaul"
-        ));     
+        ));
     }
-    $data1 = array(
+
+    $data = array(
         "conversion_id" => strval($order_id),
         "conversion_result_id" => "30",
         "tracking_id" => "xxx",
@@ -56,7 +54,7 @@ function request_api_accesstrade($order_id)
         "items" => $arr_item
     );
 
-    $data_string = json_encode($data1);
+    $data_string = json_encode($data);
 
     $url='https://api.accesstrade.vn/v1/postbacks/conversions';
 
@@ -65,19 +63,18 @@ function request_api_accesstrade($order_id)
         'body'    => $data_string,
         'headers' => array(
             'Content-Type'=>' application/json',
-            'Authorization'=>'Token '.get_option( "token", $default = false)
+            'Authorization'=>'Token '.get_option( "at_token", $default = false)
         ),
     ) );
 
 }
 
-
-
 function wpb_hook_javascript() {
 ?>
-    <script src="//static.accesstrade.vn/js/trackingtag/tracking.min.js " ></script> 
+
+    <script src="//static.accesstrade.vn/js/trackingtag/tracking.min.js"></script> 
     <script type="text/javascript">
-        AT.init({"campaign_id":<?php echo get_option( "campaign_id", $default = false) ?>, "is_reoccur": <?php echo get_option( "is_reoccur", $default = false) ?>,"is_lastclick": <?php echo get_option( "is_lastclick", $default = false) ?>} );
+        AT.init({"campaign_id":<?php echo get_option( "at_campaign_id", $default = false) ?>, "is_reoccur": <?php echo get_option( "at_is_reoccur", $default = false) ?>,"is_lastclick": <?php echo get_option( "at_is_lastclick", $default = false) ?>} );
         AT.track();
     </script>
 
@@ -86,13 +83,16 @@ function wpb_hook_javascript() {
 add_action('wp_head', 'wpb_hook_javascript');
 
 add_action('woocommerce_order_status_changed','status_api_accesstrade');
+
 function status_api_accesstrade( $order_id, $checkout = null ) {
+
  $order = wc_get_order( $order_id );
+
  $line_items = $order->get_items();
 
  $items=array();
 
- foreach ( $line_items as $item ) {
+foreach ( $line_items as $item ) {
 
     array_push($items, $item);
 
@@ -108,13 +108,13 @@ if($order->status == "completed"){
             "status" => 1
         ));     
     }
-    $data1 = array(
+    $data = array(
         "transaction_id" => strval($order_id),
         "status" => 1,
         "items" => $arr_item
     );
 
-    $data_string = json_encode($data1);
+    $data_string = json_encode($data);
 
     $url='https://api.accesstrade.vn/v1/postbacks/conversions';
 
@@ -123,11 +123,10 @@ if($order->status == "completed"){
         'body'=> $data_string,
         'headers' => array(
         'Content-Type'=>' application/json',
-        'Authorization'=>'Token '.get_option( "token", $default = false)
+        'Authorization'=>'Token '.get_option( "at_token", $default = false)
         )
     ) );
     
-
 }
 }
 ?>
